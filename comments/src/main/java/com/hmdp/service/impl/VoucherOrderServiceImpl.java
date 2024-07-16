@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
@@ -12,6 +13,7 @@ import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
@@ -61,16 +63,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     @Override
+    @Transactional
     public Result createVoucherOrder(Long voucherId) {
+        boolean update = iSeckillVoucherService.update(new LambdaUpdateWrapper<SeckillVoucher>()
+                .eq(SeckillVoucher::getVoucherId, voucherId)
+                .gt(SeckillVoucher::getStock, 0)
+                .setSql("stock=stock-1"));
+        if(!update){
+            return Result.fail("更新库存失败");
+        }
         VoucherOrder order = new VoucherOrder();
         order.setVoucherId(voucherId);
         order.setId(UserHolder.getUser().getId());
         order.setCreateTime(LocalDateTime.now());
         int insert = baseMapper.insert(order);
-        if(insert == 1){
-            return Result.ok("创建订单成功");
+        if(insert < 1){
+            return Result.fail("创建订单失败");
         }
-        return Result.fail("创建订单失败");
+        return Result.ok("创建订单成功");
     }
 
 
