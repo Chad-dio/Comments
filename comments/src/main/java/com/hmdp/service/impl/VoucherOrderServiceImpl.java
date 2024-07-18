@@ -10,6 +10,8 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,8 @@ import java.time.LocalDateTime;
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
     @Resource
     private ISeckillVoucherService iSeckillVoucherService;
+    @Resource
+    private RedissonClient redissonClient;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
@@ -47,8 +51,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
         //3.购买合法，生成订单
         Long id = UserHolder.getUser().getId();
-        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + id);
-        boolean success = lock.tryLock(1200);
+//        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + id);
+        RLock lock = redissonClient.getLock("lock:order:" + id);
+        boolean success = lock.tryLock();
         if(!success){
             return Result.fail("不允许重复下单");
         }
@@ -58,7 +63,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         } catch (IllegalStateException e) {
             throw new RuntimeException(e);
         }finally {
-            lock.unLock();
+            lock.unlock();
         }
     }
 
